@@ -180,8 +180,9 @@ func (tc *LambdaTestCase) invoke() (*LambdaTestResult, error) {
 	}
 
 	return &LambdaTestResult{
-		Status:  int(*resp.StatusCode),
-		Payload: resp.Payload,
+		testCase: tc,
+		Status:   int(*resp.StatusCode),
+		Payload:  resp.Payload,
 	}, nil
 }
 
@@ -260,7 +261,7 @@ func functionName(f interface{}) string {
 	return runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name()
 }
 
-func parseResponseBody(body []byte) interface{} {
+func parseResponsePayload(body []byte) interface{} {
 	if len(body) > 0 {
 		var bodyMap map[string]interface{}
 		if err := json.Unmarshal(body, &bodyMap); err == nil {
@@ -272,7 +273,8 @@ func parseResponseBody(body []byte) interface{} {
 			return bodyArray
 		}
 
-		return string(body)
+		b := strings.TrimPrefix(string(body), `"`)
+		return strings.TrimSuffix(b, `"`)
 	}
 
 	return nil
@@ -287,7 +289,7 @@ func (r *LambdaTestResult) validateExpectations() {
 	}
 
 	if tc.Expectations.Payload != nil {
-		body := parseResponseBody(r.Payload)
+		body := parseResponsePayload(r.Payload)
 		if errs := expect.Value("body", tc.Expectations.Payload, body, tc.Expectations.WantExactJSONPayload); len(errs) > 0 {
 			r.errors = append(r.errors, errs...)
 		}
