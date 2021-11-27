@@ -1,6 +1,8 @@
 package main
 
 import (
+	osexec "os/exec"
+
 	"github.com/jefflinse/melatonin-ext/exec"
 	"github.com/jefflinse/melatonin/mt"
 )
@@ -20,5 +22,9 @@ func main() {
 			ExpectExitCode(0),
 
 		exec.Run("/bin/notfound", "attempt to execute something nonexistent"),
+
+		exec.Cmd(osexec.Command("echo", "A custom command!")).
+			ExpectExitCode(0).
+			ExpectStdout("A custom command!\n"),
 	})
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"os"
 	osexec "os/exec"
 	"strings"
 	"testing"
@@ -12,7 +13,7 @@ import (
 )
 
 type TestContext struct {
-	Environment map[string]string
+	Environment []string
 }
 
 func DefaultContext() *TestContext {
@@ -21,13 +22,23 @@ func DefaultContext() *TestContext {
 
 func NewTestContext() *TestContext {
 	return &TestContext{
-		Environment: map[string]string{},
+		Environment: []string{},
 	}
 }
 
-func (c *TestContext) WithEnvironment(env map[string]string) *TestContext {
+func (c *TestContext) WithEnvVars(env map[string]string) *TestContext {
 	for k, v := range env {
-		c.Environment[k] = v
+		c.Environment = append(c.Environment, k+"="+v)
+	}
+
+	return c
+}
+
+func (c *TestContext) WithInheritedEnvironment(inherit bool) *TestContext {
+	if inherit {
+		c.Environment = os.Environ()
+	} else {
+		c.Environment = []string{}
 	}
 
 	return c
@@ -37,8 +48,8 @@ type TestCase struct {
 	Desc         string
 	Expectations Expectations
 
-	command *osexec.Cmd
-	tctx    *TestContext
+	cmd  *osexec.Cmd
+	tctx *TestContext
 }
 
 var _ mt.TestCase = &TestCase{}
@@ -52,7 +63,7 @@ func (tc *TestCase) Description() string {
 		return tc.Desc
 	}
 
-	return tc.command.String()
+	return tc.cmd.String()
 }
 
 func (tc *TestCase) Execute(t *testing.T) (mt.TestResult, error) {
@@ -61,10 +72,10 @@ func (tc *TestCase) Execute(t *testing.T) (mt.TestResult, error) {
 	}
 
 	stdout, stderr := &strings.Builder{}, &strings.Builder{}
-	tc.command.Stdout = stdout
-	tc.command.Stderr = stderr
+	tc.cmd.Stdout = stdout
+	tc.cmd.Stderr = stderr
 
-	if err := tc.command.Run(); err != nil {
+	if err := tc.cmd.Run(); err != nil {
 		switch e := err.(type) {
 		case *fs.PathError:
 			result.errors = append(result.errors, fmt.Errorf("%s: %s", e.Path, e.Err))
@@ -73,7 +84,7 @@ func (tc *TestCase) Execute(t *testing.T) (mt.TestResult, error) {
 		}
 	}
 
-	result.ExitCode = tc.command.ProcessState.ExitCode()
+	result.ExitCode = tc.cmd.ProcessState.ExitCode()
 	result.Stdout = stdout.String()
 	result.Stderr = stderr.String()
 	result.validateExpectations()
@@ -82,16 +93,17 @@ func (tc *TestCase) Execute(t *testing.T) (mt.TestResult, error) {
 }
 
 func (tc *TestCase) Target() string {
-	return strings.Join(tc.command.Args, " ")
+	return strings.Join(tc.cmd.Args, " ")
 }
 
-func (c *TestContext) newTestCase(command string, description ...string) *TestCase {
+func (c *TestContext) newTestCase(cmd *osexec.Cmd, description ...string) *TestCase {
+	cmd.Env = append(c.Environment, cmd.Env...)
 	return &TestCase{
 		Desc:         strings.Join(description, ", "),
 		Expectations: Expectations{},
 
-		command: osexec.Command(command),
-		tctx:    c,
+		cmd:  cmd,
+		tctx: c,
 	}
 }
 
@@ -99,30 +111,45 @@ func Run(command string, description ...string) *TestCase {
 	return DefaultContext().Run(command, description...)
 }
 
-func (tc *TestContext) Run(command string, description ...string) *TestCase {
-	return tc.newTestCase(command, description...)
+func Cmd(command *osexec.Cmd, description ...string) *TestCase {
+	return DefaultContext().Cmd(command, description...)
 }
 
-func (tc *TestCase) WithArgs(args ...string) *TestCase {
-	tc.command.Args = append(tc.command.Args, args...)
+func (tc *TestContext) Run(command string, description ...string) *TestCase {
+	t := tc.newTestCase(osexec.Command(command), description...)
+	return t
+}
+
+func (tc *TestContext) Cmd(cmd *osexec.Cmd, description ...string) *TestCase {
+	t := tc.newTestCase(cmd, description...)
+	return t
+}
+
+func (tc *TestCase) Describe(description string) *TestCase {
+	tc.Desc = description
 	return tc
 }
 
-func (tc *TestCase) WithEnv(env map[string]string) *TestCase {
+func (tc *TestCase) WithArgs(args ...string) *TestCase {
+	tc.cmd.Args = append(tc.cmd.Args, args...)
+	return tc
+}
+
+func (tc *TestCase) WithEnvVars(env map[string]string) *TestCase {
 	for k, v := range env {
-		tc.command.Env = append(tc.command.Env, k+"="+v)
+		tc.cmd.Env = append(tc.cmd.Env, k+"="+v)
 	}
 
 	return tc
 }
 
 func (tc *TestCase) WithStdin(stdin io.Reader) *TestCase {
-	tc.command.Stdin = stdin
+	tc.cmd.Stdin = stdin
 	return tc
 }
 
 func (tc *TestCase) WithWorkingDir(dir string) *TestCase {
-	tc.command.Dir = dir
+	tc.cmd.Dir = dir
 	return tc
 }
 
