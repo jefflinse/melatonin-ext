@@ -12,7 +12,8 @@ import (
 func main() {
 	sess := aws.NewLambdaTestContext(session.Must(session.NewSession()))
 
-	_, err := mt.RunTests([]mt.TestCase{
+	runner := mt.NewTestRunner().WithContinueOnFailure(true)
+	_, err := runner.RunTests([]mt.TestCase{
 		aws.Handle(sampleHandler, "testing my handler").
 			WithPayload(json.Object{}).
 			ExpectStatus(200).
@@ -64,6 +65,12 @@ func main() {
 
 		sess.Invoke("doesNotExist", "attempt to test a function that doesn't exist").
 			WithPayload(json.Object{}),
+
+		sess.Invoke("doesNotExist", "attempt to test a function that doesn't exist").
+			WithPayload(json.Object{}).ExpectStatus(200),
+
+		sess.Invoke("doesNotExist", "attempt to test a function that doesn't exist").
+			WithPayload(json.Object{}).ExpectStatus(404),
 
 		aws.Invoke("testFunction", "test a lambda using the default context"),
 	})
