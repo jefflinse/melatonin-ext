@@ -1,8 +1,10 @@
 package aws
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"runtime"
@@ -10,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	lambdasvc "github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/jefflinse/melatonin/expect"
@@ -98,18 +101,18 @@ func (tc *LambdaTestCase) Description() string {
 	}
 
 	if tc.FunctionID != "" {
-		return fmt.Sprint("Invoke", tc.Target())
+		return "Invoke " + tc.Target()
 	}
 
-	return fmt.Sprint("Handle", tc.Target())
+	return "Handle " + tc.Target()
 }
 
 func (tc *LambdaTestCase) Target() string {
 	if tc.FunctionID != "" {
-		return "Lambda: " + tc.FunctionID
+		return "AWS Lambda (" + strings.TrimPrefix(tc.FunctionID, "arn:aws:lambda:") + ")"
 	}
 
-	return "Lambda handler func: " + functionName(tc.HandlerFn)
+	return "AWS Lambda (" + functionName(tc.HandlerFn) + ")"
 }
 
 func (tc *LambdaTestCase) Execute(t *testing.T) (mt.TestResult, error) {
@@ -129,7 +132,9 @@ func (tc *LambdaTestCase) Execute(t *testing.T) (mt.TestResult, error) {
 		return nil, err
 	}
 
-	result.validateExpectations()
+	if len(result.Errors()) == 0 {
+		result.validateExpectations()
+	}
 
 	return result, nil
 }
@@ -141,6 +146,11 @@ func (tc *LambdaTestCase) Describe(description string) *LambdaTestCase {
 
 func (tc *LambdaTestCase) WithPayload(payload interface{}) *LambdaTestCase {
 	tc.Payload = payload
+	return tc
+}
+
+func (tc *LambdaTestCase) ExpectFunctionError(err string) *LambdaTestCase {
+	tc.Expectations.FunctionError = err
 	return tc
 }
 
@@ -175,15 +185,25 @@ func (tc *LambdaTestCase) invoke() (*LambdaTestResult, error) {
 		Payload:      payload,
 	})
 
-	if err != nil {
-		return nil, fmt.Errorf("invoke: %w", err)
+	result := &LambdaTestResult{
+		testCase: tc,
+		Payload:  resp.Payload,
 	}
 
-	return &LambdaTestResult{
-		testCase: tc,
-		Status:   int(*resp.StatusCode),
-		Payload:  resp.Payload,
-	}, nil
+	if err != nil {
+		e := err.(awserr.Error)
+		result.errors = append(result.errors, errors.New(e.Message()))
+	}
+
+	if resp.StatusCode != nil {
+		result.Status = int(*resp.StatusCode)
+	}
+
+	if resp.FunctionError != nil {
+		result.FunctionError = *resp.FunctionError
+	}
+
+	return result, nil
 }
 
 func (tc *LambdaTestCase) handle() (*LambdaTestResult, error) {
@@ -236,14 +256,16 @@ func (tc *LambdaTestCase) requestPayloadBytes() ([]byte, error) {
 }
 
 type LambdaResponseExpectations struct {
-	Status               int
+	FunctionError        string
 	Payload              interface{}
+	Status               int
 	WantExactJSONPayload bool
 }
 
 type LambdaTestResult struct {
-	Status  int
-	Payload []byte
+	FunctionError string
+	Payload       []byte
+	Status        int
 
 	testCase *LambdaTestCase
 	errors   []error
@@ -263,6 +285,14 @@ func functionName(f interface{}) string {
 
 func parseResponsePayload(body []byte) interface{} {
 	if len(body) > 0 {
+		// see if it's a function error response
+		d := json.NewDecoder(bytes.NewReader(body))
+		d.DisallowUnknownFields()
+		funcErrResp := &lambdaFunctionErrorResult{}
+		if err := d.Decode(funcErrResp); err == nil && funcErrResp.Message != "" && funcErrResp.Type != "" {
+			return funcErrResp
+		}
+
 		var bodyMap map[string]interface{}
 		if err := json.Unmarshal(body, &bodyMap); err == nil {
 			return bodyMap
@@ -280,8 +310,25 @@ func parseResponsePayload(body []byte) interface{} {
 	return nil
 }
 
+type lambdaFunctionErrorResult struct {
+	Message string `json:"errorMessage"`
+	Type    string `json:"errorType"`
+}
+
 func (r *LambdaTestResult) validateExpectations() {
 	tc := r.TestCase().(*LambdaTestCase)
+
+	if tc.Expectations.FunctionError != "" && r.FunctionError == "Unhandled" {
+		errPayload := parseResponsePayload(r.Payload).(*lambdaFunctionErrorResult)
+		if errPayload.Message != tc.Expectations.FunctionError {
+			r.errors = append(r.errors, fmt.Errorf("expected function error %q, got %q", tc.Expectations.FunctionError, errPayload.Message))
+		}
+	} else {
+		if r.FunctionError != "" {
+			r.errors = append(r.errors, fmt.Errorf("expected no function error, got %q", r.FunctionError))
+		}
+	}
+
 	if tc.Expectations.Status != 0 {
 		if r.Status != tc.Expectations.Status {
 			r.errors = append(r.errors, fmt.Errorf("expected status code %d, got %d", tc.Expectations.Status, r.Status))
