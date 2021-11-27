@@ -117,7 +117,9 @@ func (tc *TestCase) Description() string {
 
 func (tc *TestCase) Target() string {
 	if tc.FunctionID != "" {
-		return "AWS Lambda (" + strings.TrimPrefix(tc.FunctionID, "arn:aws:lambda:") + ")"
+		target := strings.Replace(tc.FunctionID, "arn:aws:lambda:", ":::", 1)
+		target = strings.Replace(target, ":function:", "::", 1)
+		return fmt.Sprintf("AWS Lambda (%s)", target)
 	}
 
 	return "AWS Lambda handler (" + functionName(tc.HandlerFn) + ")"
