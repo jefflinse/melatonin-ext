@@ -74,10 +74,10 @@ type TestCase struct {
 	FunctionID   string
 	HandlerFn    interface{}
 	Payload      interface{}
-	DryRun       bool
 	Expectations ResponseExpectations
 
 	payloadBytes []byte
+	request      *lambdasvc.InvokeInput
 	tctx         *TestContext
 }
 
@@ -87,7 +87,10 @@ func newLambdaTestCase(context *TestContext, functionID string, description ...s
 	return &TestCase{
 		Desc:       strings.Join(description, " "),
 		FunctionID: functionID,
-		tctx:       context,
+		request: &lambdasvc.InvokeInput{
+			FunctionName: aws.String(functionID),
+		},
+		tctx: context,
 	}
 }
 
@@ -153,13 +156,18 @@ func (tc *TestCase) Execute(t *testing.T) (mt.TestResult, error) {
 }
 
 func (tc *TestCase) AsDryRun() *TestCase {
-	tc.DryRun = true
+	tc.request.InvocationType = aws.String("DryRun")
 	tc.Expectations.Status = 204
 	return tc
 }
 
 func (tc *TestCase) Describe(description string) *TestCase {
 	tc.Desc = description
+	return tc
+}
+
+func (tc *TestCase) WithExecutionLogs() *TestCase {
+	tc.request.LogType = aws.String("Tail")
 	return tc
 }
 
@@ -204,16 +212,8 @@ func (tc *TestCase) invoke() (*TestResult, error) {
 		return nil, err
 	}
 
-	req := &lambdasvc.InvokeInput{
-		FunctionName: &tc.FunctionID,
-		Payload:      payload,
-	}
-
-	if tc.DryRun {
-		req.InvocationType = aws.String("DryRun")
-	}
-
-	resp, err := tc.tctx.svc.Invoke(req)
+	tc.request.Payload = payload
+	resp, err := tc.tctx.svc.Invoke(tc.request)
 
 	result := &TestResult{
 		testCase:        tc,
@@ -318,8 +318,7 @@ func (r *TestResult) Log() (string, error) {
 		return "", nil
 	}
 
-	var b []byte
-	_, err := base64.StdEncoding.Decode(b, []byte(r.LogBase64))
+	b, err := base64.StdEncoding.DecodeString(r.LogBase64)
 	if err != nil {
 		return "", err
 	}
