@@ -31,14 +31,20 @@ type TestContext struct {
 	svc LambdaAPI
 }
 
-// DefaultContext returns a LambdaTestContext using a default AWS session.
+// DefaultContext returns a LambdaTestContext using a default AWS Lambda service.
 func DefaultContext() *TestContext {
 	svc := lambdasvc.New(session.Must(session.NewSession()))
 	return NewTestContext(svc)
 }
 
+// EmptyContext returns a LambdaTestContext with no configured AWS service.
+// It is suitable only for testing local function handlers.
+func EmptyContext() *TestContext {
+	return &TestContext{}
+}
+
 // NewLambdaFunctionContext creates a new HTTPTestContext for creating tests that target
-// AWS Lambda functions using the provided AWS session.
+// AWS Lambda functions using the provided AWS service.
 func NewTestContext(svc LambdaAPI) *TestContext {
 	return &TestContext{
 		svc: svc,
@@ -58,7 +64,7 @@ func Invoke(functionID string, description ...string) *TestCase {
 }
 
 func Handle(handlerFn interface{}, description ...string) *TestCase {
-	return DefaultContext().Handle(handlerFn, description...)
+	return EmptyContext().Handle(handlerFn, description...)
 }
 
 type TestCase struct {
@@ -106,7 +112,7 @@ func (tc *TestCase) Description() string {
 		return "Invoke " + tc.Target()
 	}
 
-	return "Handle " + tc.Target()
+	return "Call " + tc.Target()
 }
 
 func (tc *TestCase) Target() string {
@@ -114,7 +120,7 @@ func (tc *TestCase) Target() string {
 		return "AWS Lambda (" + strings.TrimPrefix(tc.FunctionID, "arn:aws:lambda:") + ")"
 	}
 
-	return "AWS Lambda (" + functionName(tc.HandlerFn) + ")"
+	return "AWS Lambda handler (" + functionName(tc.HandlerFn) + ")"
 }
 
 func (tc *TestCase) Execute(t *testing.T) (mt.TestResult, error) {
