@@ -95,11 +95,11 @@ func (c *TestContext) newTestCase(command string, description ...string) *TestCa
 	}
 }
 
-func Exec(command string, description ...string) *TestCase {
-	return DefaultContext().Exec(command, description...)
+func Run(command string, description ...string) *TestCase {
+	return DefaultContext().Run(command, description...)
 }
 
-func (tc *TestContext) Exec(command string, description ...string) *TestCase {
+func (tc *TestContext) Run(command string, description ...string) *TestCase {
 	return tc.newTestCase(command, description...)
 }
 
