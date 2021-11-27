@@ -28,22 +28,20 @@ type LambdaAPI interface {
 }
 
 type LambdaTestContext struct {
-	Session *session.Session
-
 	svc LambdaAPI
 }
 
 // DefaultContext returns a LambdaTestContext using a default AWS session.
 func DefaultContext() *LambdaTestContext {
-	return NewLambdaTestContext(session.Must(session.NewSession()))
+	svc := lambdasvc.New(session.Must(session.NewSession()))
+	return NewLambdaTestContext(svc)
 }
 
 // NewLambdaFunctionContext creates a new HTTPTestContext for creating tests that target
 // AWS Lambda functions using the provided AWS session.
-func NewLambdaTestContext(sess *session.Session) *LambdaTestContext {
+func NewLambdaTestContext(svc LambdaAPI) *LambdaTestContext {
 	return &LambdaTestContext{
-		Session: sess,
-		svc:     lambdasvc.New(sess),
+		svc: svc,
 	}
 }
 
@@ -181,7 +179,7 @@ func (tc *LambdaTestCase) ExpectVersion(version string) *LambdaTestCase {
 
 func (tc *LambdaTestCase) invoke() (*LambdaTestResult, error) {
 	if tc.tctx.svc == nil {
-		tc.tctx.svc = lambdasvc.New(tc.tctx.Session)
+		return nil, errors.New("no AWS Lambda service provided")
 	}
 
 	payload, err := tc.requestPayloadBytes()

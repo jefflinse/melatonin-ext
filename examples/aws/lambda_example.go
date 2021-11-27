@@ -4,13 +4,15 @@ import (
 	"context"
 
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/jefflinse/melatonin-ext/aws"
 	"github.com/jefflinse/melatonin/json"
 	"github.com/jefflinse/melatonin/mt"
 )
 
 func main() {
-	sess := aws.NewLambdaTestContext(session.Must(session.NewSession()))
+	svc := lambda.New(session.Must(session.NewSession()))
+	lda := aws.NewLambdaTestContext(svc)
 
 	runner := mt.NewTestRunner().WithContinueOnFailure(true)
 	_, err := runner.RunTests([]mt.TestCase{
@@ -28,7 +30,7 @@ func main() {
 				"message": "Hello, World!",
 			}),
 
-		sess.Invoke("testFunction", "test a lambda by specifying a function name").
+		lda.Invoke("testFunction", "test a lambda by specifying a function name").
 			WithPayload(json.Object{
 				"name": "Bob",
 			}).
@@ -36,7 +38,7 @@ func main() {
 			ExpectPayload("Hello Bob!").
 			ExpectVersion(aws.LambdaVersionLatest),
 
-		sess.Invoke("testFunction", "test a lambda expecting a specific version").
+		lda.Invoke("testFunction", "test a lambda expecting a specific version").
 			WithPayload(json.Object{
 				"name": "Bob",
 			}).
@@ -44,39 +46,39 @@ func main() {
 			ExpectPayload("Hello Bob!").
 			ExpectVersion("2"),
 
-		sess.Invoke("testFunction").
+		lda.Invoke("testFunction").
 			WithPayload(json.Object{
 				"name": "Bob",
 			}).
 			ExpectPayload("Hello Bob!"),
 
-		sess.Invoke("arn:aws:lambda:us-west-2:933760355198:function:testFunction", "test a lambda by specifying an ARN").
+		lda.Invoke("arn:aws:lambda:us-west-2:933760355198:function:testFunction", "test a lambda by specifying an ARN").
 			WithPayload(json.Object{
 				"name": "Bob",
 			}).
 			ExpectStatus(200).
 			ExpectPayload("Hello Bob!"),
 
-		sess.Invoke("arn:aws:lambda:us-west-2:933760355198:function:testFunction").
+		lda.Invoke("arn:aws:lambda:us-west-2:933760355198:function:testFunction").
 			WithPayload(json.Object{
 				"name": "Bob",
 			}).
 			ExpectPayload("Hello Bob!"),
 
-		sess.Invoke("testFailingFunction", "test a function that returns an expected error").
+		lda.Invoke("testFailingFunction", "test a function that returns an expected error").
 			WithPayload(json.Object{
 				"name": "Bob",
 			}).
 			ExpectStatus(200).
 			ExpectFunctionError("my function error"),
 
-		sess.Invoke("doesNotExist", "attempt to test a function that doesn't exist").
+		lda.Invoke("doesNotExist", "attempt to test a function that doesn't exist").
 			WithPayload(json.Object{}),
 
-		sess.Invoke("doesNotExist", "attempt to test a function that doesn't exist").
+		lda.Invoke("doesNotExist", "attempt to test a function that doesn't exist").
 			WithPayload(json.Object{}).ExpectStatus(200),
 
-		sess.Invoke("doesNotExist", "attempt to test a function that doesn't exist").
+		lda.Invoke("doesNotExist", "attempt to test a function that doesn't exist").
 			WithPayload(json.Object{}).ExpectStatus(404),
 
 		aws.Invoke("testFunction", "test a lambda using the default context"),
