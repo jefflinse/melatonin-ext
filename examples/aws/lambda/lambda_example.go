@@ -65,6 +65,9 @@ func main() {
 			}).
 			ExpectPayload("Hello Bob!"),
 
+		lda.Invoke("testFunction", "test a lambda by performing a dry run").
+			AsDryRun(),
+
 		lda.Invoke("testFailingFunction", "test a function that returns an expected error").
 			WithPayload(json.Object{
 				"name": "Bob",

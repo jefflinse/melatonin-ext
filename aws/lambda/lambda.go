@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	lambdasvc "github.com/aws/aws-sdk-go/service/lambda"
@@ -73,6 +74,7 @@ type TestCase struct {
 	FunctionID   string
 	HandlerFn    interface{}
 	Payload      interface{}
+	DryRun       bool
 	Expectations ResponseExpectations
 
 	payloadBytes []byte
@@ -150,6 +152,12 @@ func (tc *TestCase) Execute(t *testing.T) (mt.TestResult, error) {
 	return result, nil
 }
 
+func (tc *TestCase) AsDryRun() *TestCase {
+	tc.DryRun = true
+	tc.Expectations.Status = 204
+	return tc
+}
+
 func (tc *TestCase) Describe(description string) *TestCase {
 	tc.Desc = description
 	return tc
@@ -196,10 +204,16 @@ func (tc *TestCase) invoke() (*TestResult, error) {
 		return nil, err
 	}
 
-	resp, err := tc.tctx.svc.Invoke(&lambdasvc.InvokeInput{
+	req := &lambdasvc.InvokeInput{
 		FunctionName: &tc.FunctionID,
 		Payload:      payload,
-	})
+	}
+
+	if tc.DryRun {
+		req.InvocationType = aws.String("DryRun")
+	}
+
+	resp, err := tc.tctx.svc.Invoke(req)
 
 	result := &TestResult{
 		testCase:        tc,
