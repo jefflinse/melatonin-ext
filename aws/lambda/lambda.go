@@ -1,4 +1,4 @@
-package aws
+package lambda
 
 import (
 	"bytes"
@@ -20,76 +20,76 @@ import (
 )
 
 const (
-	LambdaVersionLatest = "$LATEST"
+	VersionLatest = "$LATEST"
 )
 
 type LambdaAPI interface {
 	Invoke(input *lambdasvc.InvokeInput) (*lambdasvc.InvokeOutput, error)
 }
 
-type LambdaTestContext struct {
+type TestContext struct {
 	svc LambdaAPI
 }
 
 // DefaultContext returns a LambdaTestContext using a default AWS session.
-func DefaultContext() *LambdaTestContext {
+func DefaultContext() *TestContext {
 	svc := lambdasvc.New(session.Must(session.NewSession()))
-	return NewLambdaTestContext(svc)
+	return NewTestContext(svc)
 }
 
 // NewLambdaFunctionContext creates a new HTTPTestContext for creating tests that target
 // AWS Lambda functions using the provided AWS session.
-func NewLambdaTestContext(svc LambdaAPI) *LambdaTestContext {
-	return &LambdaTestContext{
+func NewTestContext(svc LambdaAPI) *TestContext {
+	return &TestContext{
 		svc: svc,
 	}
 }
 
-func (c *LambdaTestContext) Invoke(functionID string, description ...string) *LambdaTestCase {
+func (c *TestContext) Invoke(functionID string, description ...string) *TestCase {
 	return newLambdaTestCase(c, functionID, description...)
 }
 
-func (c *LambdaTestContext) Handle(handlerFn interface{}, description ...string) *LambdaTestCase {
+func (c *TestContext) Handle(handlerFn interface{}, description ...string) *TestCase {
 	return newHandlerTestCase(c, handlerFn, description...)
 }
 
-func Invoke(functionID string, description ...string) *LambdaTestCase {
+func Invoke(functionID string, description ...string) *TestCase {
 	return DefaultContext().Invoke(functionID, description...)
 }
 
-func Handle(handlerFn interface{}, description ...string) *LambdaTestCase {
+func Handle(handlerFn interface{}, description ...string) *TestCase {
 	return DefaultContext().Handle(handlerFn, description...)
 }
 
-type LambdaTestCase struct {
+type TestCase struct {
 	Desc         string
 	FunctionID   string
 	HandlerFn    interface{}
 	Payload      interface{}
-	Expectations LambdaResponseExpectations
+	Expectations ResponseExpectations
 
 	payloadBytes []byte
-	tctx         *LambdaTestContext
+	tctx         *TestContext
 }
 
-var _ mt.TestCase = &LambdaTestCase{}
+var _ mt.TestCase = &TestCase{}
 
-func newLambdaTestCase(context *LambdaTestContext, functionID string, description ...string) *LambdaTestCase {
-	return &LambdaTestCase{
+func newLambdaTestCase(context *TestContext, functionID string, description ...string) *TestCase {
+	return &TestCase{
 		Desc:       strings.Join(description, " "),
 		FunctionID: functionID,
 		tctx:       context,
 	}
 }
 
-func newHandlerTestCase(c *LambdaTestContext, handlerFn interface{}, description ...string) *LambdaTestCase {
-	return &LambdaTestCase{
+func newHandlerTestCase(c *TestContext, handlerFn interface{}, description ...string) *TestCase {
+	return &TestCase{
 		Desc:      strings.Join(description, " "),
 		HandlerFn: handlerFn,
 	}
 }
 
-func (tc *LambdaTestCase) Action() string {
+func (tc *TestCase) Action() string {
 	if tc.FunctionID != "" {
 		return "INVOKE"
 	}
@@ -97,7 +97,7 @@ func (tc *LambdaTestCase) Action() string {
 	return "HANDLE"
 }
 
-func (tc *LambdaTestCase) Description() string {
+func (tc *TestCase) Description() string {
 	if tc.Desc != "" {
 		return tc.Desc
 	}
@@ -109,7 +109,7 @@ func (tc *LambdaTestCase) Description() string {
 	return "Handle " + tc.Target()
 }
 
-func (tc *LambdaTestCase) Target() string {
+func (tc *TestCase) Target() string {
 	if tc.FunctionID != "" {
 		return "AWS Lambda (" + strings.TrimPrefix(tc.FunctionID, "arn:aws:lambda:") + ")"
 	}
@@ -117,12 +117,12 @@ func (tc *LambdaTestCase) Target() string {
 	return "AWS Lambda (" + functionName(tc.HandlerFn) + ")"
 }
 
-func (tc *LambdaTestCase) Execute(t *testing.T) (mt.TestResult, error) {
+func (tc *TestCase) Execute(t *testing.T) (mt.TestResult, error) {
 	if tc.FunctionID != "" && tc.HandlerFn != nil {
 		return nil, fmt.Errorf("LambdaTestCase must specify either FunctionID or HandlerFn, not both")
 	}
 
-	var result *LambdaTestResult
+	var result *TestResult
 	var err error
 	if tc.FunctionID != "" {
 		result, err = tc.invoke()
@@ -141,43 +141,43 @@ func (tc *LambdaTestCase) Execute(t *testing.T) (mt.TestResult, error) {
 	return result, nil
 }
 
-func (tc *LambdaTestCase) Describe(description string) *LambdaTestCase {
+func (tc *TestCase) Describe(description string) *TestCase {
 	tc.Desc = description
 	return tc
 }
 
-func (tc *LambdaTestCase) WithPayload(payload interface{}) *LambdaTestCase {
+func (tc *TestCase) WithPayload(payload interface{}) *TestCase {
 	tc.Payload = payload
 	return tc
 }
 
-func (tc *LambdaTestCase) ExpectFunctionError(err string) *LambdaTestCase {
+func (tc *TestCase) ExpectFunctionError(err string) *TestCase {
 	tc.Expectations.FunctionError = err
 	return tc
 }
 
-func (tc *LambdaTestCase) ExpectPayload(payload interface{}) *LambdaTestCase {
+func (tc *TestCase) ExpectPayload(payload interface{}) *TestCase {
 	tc.Expectations.Payload = payload
 	return tc
 }
 
-func (tc *LambdaTestCase) ExpectExactPayload(payload interface{}) *LambdaTestCase {
+func (tc *TestCase) ExpectExactPayload(payload interface{}) *TestCase {
 	tc.Expectations.Payload = payload
 	tc.Expectations.WantExactJSONPayload = true
 	return tc
 }
 
-func (tc *LambdaTestCase) ExpectStatus(status int) *LambdaTestCase {
+func (tc *TestCase) ExpectStatus(status int) *TestCase {
 	tc.Expectations.Status = status
 	return tc
 }
 
-func (tc *LambdaTestCase) ExpectVersion(version string) *LambdaTestCase {
+func (tc *TestCase) ExpectVersion(version string) *TestCase {
 	tc.Expectations.Version = version
 	return tc
 }
 
-func (tc *LambdaTestCase) invoke() (*LambdaTestResult, error) {
+func (tc *TestCase) invoke() (*TestResult, error) {
 	if tc.tctx.svc == nil {
 		return nil, errors.New("no AWS Lambda service provided")
 	}
@@ -192,7 +192,7 @@ func (tc *LambdaTestCase) invoke() (*LambdaTestResult, error) {
 		Payload:      payload,
 	})
 
-	result := &LambdaTestResult{
+	result := &TestResult{
 		testCase:        tc,
 		InvocationError: err,
 		Payload:         resp.Payload,
@@ -213,7 +213,7 @@ func (tc *LambdaTestCase) invoke() (*LambdaTestResult, error) {
 	return result, nil
 }
 
-func (tc *LambdaTestCase) handle() (*LambdaTestResult, error) {
+func (tc *TestCase) handle() (*TestResult, error) {
 	handler := lambda.NewHandler(tc.HandlerFn)
 	payload, err := tc.requestPayloadBytes()
 	if err != nil {
@@ -225,14 +225,14 @@ func (tc *LambdaTestCase) handle() (*LambdaTestResult, error) {
 		return nil, err
 	}
 
-	return &LambdaTestResult{
+	return &TestResult{
 		testCase: tc,
 		Status:   200,
 		Payload:  resp,
 	}, nil
 }
 
-func (tc *LambdaTestCase) requestPayloadBytes() ([]byte, error) {
+func (tc *TestCase) requestPayloadBytes() ([]byte, error) {
 	if tc.payloadBytes != nil {
 		return tc.payloadBytes, nil
 	}
@@ -262,7 +262,7 @@ func (tc *LambdaTestCase) requestPayloadBytes() ([]byte, error) {
 	return tc.payloadBytes, nil
 }
 
-type LambdaResponseExpectations struct {
+type ResponseExpectations struct {
 	FunctionError        string
 	Payload              interface{}
 	Status               int
@@ -270,22 +270,22 @@ type LambdaResponseExpectations struct {
 	WantExactJSONPayload bool
 }
 
-type LambdaTestResult struct {
+type TestResult struct {
 	FunctionError   string
 	InvocationError error
 	Payload         []byte
 	Status          int
 	Version         string
 
-	testCase *LambdaTestCase
+	testCase *TestCase
 	errors   []error
 }
 
-func (r *LambdaTestResult) Errors() []error {
+func (r *TestResult) Errors() []error {
 	return r.errors
 }
 
-func (r *LambdaTestResult) TestCase() mt.TestCase {
+func (r *TestResult) TestCase() mt.TestCase {
 	return r.testCase
 }
 
@@ -298,7 +298,7 @@ func parseResponsePayload(body []byte) interface{} {
 		// see if it's a function error response
 		d := json.NewDecoder(bytes.NewReader(body))
 		d.DisallowUnknownFields()
-		funcErrResp := &lambdaFunctionErrorResult{}
+		funcErrResp := &functionError{}
 		if err := d.Decode(funcErrResp); err == nil && funcErrResp.Message != nil && funcErrResp.Type != nil {
 			return funcErrResp
 		}
@@ -320,13 +320,13 @@ func parseResponsePayload(body []byte) interface{} {
 	return nil
 }
 
-type lambdaFunctionErrorResult struct {
+type functionError struct {
 	Message *string `json:"errorMessage"`
 	Type    *string `json:"errorType"`
 }
 
-func (r *LambdaTestResult) validateExpectations() {
-	tc := r.TestCase().(*LambdaTestCase)
+func (r *TestResult) validateExpectations() {
+	tc := r.TestCase().(*TestCase)
 
 	// Check for an unexpected invocation error.
 	if r.InvocationError != nil && !(tc.Expectations.Status != 0 && r.Status == tc.Expectations.Status) {
@@ -345,7 +345,7 @@ func (r *LambdaTestResult) validateExpectations() {
 	}
 
 	if tc.Expectations.FunctionError != "" && r.FunctionError == "Unhandled" {
-		errPayload := parseResponsePayload(r.Payload).(*lambdaFunctionErrorResult)
+		errPayload := parseResponsePayload(r.Payload).(*functionError)
 		if *errPayload.Message != tc.Expectations.FunctionError {
 			r.errors = append(r.errors, fmt.Errorf("expected function error %q, got %q", tc.Expectations.FunctionError, *errPayload.Message))
 		}
@@ -363,4 +363,4 @@ func (r *LambdaTestResult) validateExpectations() {
 	}
 }
 
-var _ mt.TestResult = &LambdaTestResult{}
+var _ mt.TestResult = &TestResult{}

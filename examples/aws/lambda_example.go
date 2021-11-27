@@ -4,26 +4,26 @@ import (
 	"context"
 
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/lambda"
-	"github.com/jefflinse/melatonin-ext/aws"
+	lambdasvc "github.com/aws/aws-sdk-go/service/lambda"
+	"github.com/jefflinse/melatonin-ext/aws/lambda"
 	"github.com/jefflinse/melatonin/json"
 	"github.com/jefflinse/melatonin/mt"
 )
 
 func main() {
-	svc := lambda.New(session.Must(session.NewSession()))
-	lda := aws.NewLambdaTestContext(svc)
+	svc := lambdasvc.New(session.Must(session.NewSession()))
+	lda := lambda.NewTestContext(svc)
 
 	runner := mt.NewTestRunner().WithContinueOnFailure(true)
 	_, err := runner.RunTests([]mt.TestCase{
-		aws.Handle(sampleHandler, "testing my handler").
+		lambda.Handle(sampleHandler, "testing my handler").
 			WithPayload(json.Object{}).
 			ExpectStatus(200).
 			ExpectPayload(json.Object{
 				"message": "Hello, World!",
 			}),
 
-		aws.Handle(sampleHandler).
+		lambda.Handle(sampleHandler).
 			WithPayload(json.Object{}).
 			ExpectStatus(200).
 			ExpectPayload(json.Object{
@@ -36,7 +36,7 @@ func main() {
 			}).
 			ExpectStatus(200).
 			ExpectPayload("Hello Bob!").
-			ExpectVersion(aws.LambdaVersionLatest),
+			ExpectVersion(lambda.VersionLatest),
 
 		lda.Invoke("testFunction", "test a lambda expecting a specific version").
 			WithPayload(json.Object{
@@ -81,7 +81,7 @@ func main() {
 		lda.Invoke("doesNotExist", "attempt to test a function that doesn't exist").
 			WithPayload(json.Object{}).ExpectStatus(404),
 
-		aws.Invoke("testFunction", "test a lambda using the default context"),
+		lambda.Invoke("testFunction", "test a lambda using the default context"),
 	})
 
 	if err != nil {
