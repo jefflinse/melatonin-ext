@@ -221,20 +221,20 @@ func (tc *TestCase) invoke() (*TestResult, error) {
 		Payload:         resp.Payload,
 	}
 
-	if resp.StatusCode != nil {
-		result.Status = int(*resp.StatusCode)
+	if resp.ExecutedVersion != nil {
+		result.Version = *resp.ExecutedVersion
 	}
 
 	if resp.FunctionError != nil {
 		result.FunctionError = *resp.FunctionError
 	}
 
-	if resp.ExecutedVersion != nil {
-		result.Version = *resp.ExecutedVersion
-	}
-
 	if resp.LogResult != nil {
 		result.LogBase64 = *resp.LogResult
+	}
+
+	if resp.StatusCode != nil {
+		result.Status = int(*resp.StatusCode)
 	}
 
 	return result, nil
@@ -300,10 +300,10 @@ type ResponseExpectations struct {
 type TestResult struct {
 	FunctionError   string
 	InvocationError error
+	LogBase64       string
 	Payload         []byte
 	Status          int
 	Version         string
-	LogBase64       string
 
 	testCase *TestCase
 	errors   []error
