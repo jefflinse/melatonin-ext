@@ -10,7 +10,6 @@ The lambda extension provides a context for testing AWS Lambda functions. It can
 
 ### Installation
 
-    go get github.com/jefflinse/melatonin/mt
     go get github.com/jefflinse/melatonin-ext/aws
 
 ### Usage
@@ -48,14 +47,21 @@ func main() {
 }
 ```
 
-Define a custom context to customize the AWS session:
+### Custom Context
+
+Define a custom context to customize the AWS Lambda service, including the AWS session:
 
 ```go
-ctx := aws.NewLambdaTextContext(
-    aws.Must(aws.NewSession(
-        aws.WithRegion("us-west-2"),
-    )),
+import (
+    "github.com/aws/aws-sdk-go/aws/session"
+    "github.com/aws/aws-sdk-go/service/lambda"
 )
+
+lambdaService := lambda.New(aws.Must(aws.NewSession(
+    aws.WithRegion("us-west-2"),
+)))
+
+ctx := aws.NewLambdaTextContext(lambdaService)
 
 mt.RunTests([]mt.TestCase{
 
@@ -63,4 +69,14 @@ mt.RunTests([]mt.TestCase{
         ExpectStatus(200).
         ExpectPayload("Hello, world!"),
 })
+```
+
+### Use Mock Lambda APIs
+
+A Lambda test context can be created using any type that satisfies the `LambdaAPI` interface, making it simple to substitute your own mock Lambda implementation for testing.
+
+```go
+type LambdaAPI interface {
+    Invoke(input *lambda.InvokeInput) (*lambda.InvokeOutput, error)
+}
 ```
