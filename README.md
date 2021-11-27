@@ -76,6 +76,8 @@ mt.RunTests([]mt.TestCase{
 A Lambda test context can be created using any type that satisfies the `LambdaAPI` interface, making it simple to substitute your own mock Lambda implementation for testing.
 
 ```go
+import "github.com/aws/aws-sdk-go/service/lambda"
+
 type LambdaAPI interface {
     Invoke(input *lambda.InvokeInput) (*lambda.InvokeOutput, error)
 }
