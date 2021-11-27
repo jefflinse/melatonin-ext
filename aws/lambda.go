@@ -19,6 +19,10 @@ import (
 	"github.com/jefflinse/melatonin/mt"
 )
 
+const (
+	LambdaVersionLatest = "$LATEST"
+)
+
 type LambdaAPI interface {
 	Invoke(input *lambdasvc.InvokeInput) (*lambdasvc.InvokeOutput, error)
 }
@@ -202,6 +206,10 @@ func (tc *LambdaTestCase) invoke() (*LambdaTestResult, error) {
 
 	if resp.FunctionError != nil {
 		result.FunctionError = *resp.FunctionError
+	}
+
+	if resp.ExecutedVersion != nil {
+		result.Version = *resp.ExecutedVersion
 	}
 
 	return result, nil

@@ -33,13 +33,21 @@ func main() {
 				"name": "Bob",
 			}).
 			ExpectStatus(200).
-			ExpectPayload("Hello Bob!"),
+			ExpectPayload("Hello Bob!").
+			ExpectVersion(aws.LambdaVersionLatest),
+
+		sess.Invoke("testFunction", "test a lambda expecting a specific version").
+			WithPayload(json.Object{
+				"name": "Bob",
+			}).
+			ExpectStatus(200).
+			ExpectPayload("Hello Bob!").
+			ExpectVersion("2"),
 
 		sess.Invoke("testFunction").
 			WithPayload(json.Object{
 				"name": "Bob",
 			}).
-			ExpectStatus(200).
 			ExpectPayload("Hello Bob!"),
 
 		sess.Invoke("arn:aws:lambda:us-west-2:933760355198:function:testFunction", "test a lambda by specifying an ARN").
@@ -53,7 +61,6 @@ func main() {
 			WithPayload(json.Object{
 				"name": "Bob",
 			}).
-			ExpectStatus(200).
 			ExpectPayload("Hello Bob!"),
 
 		sess.Invoke("testFailingFunction", "test a function that returns an expected error").
