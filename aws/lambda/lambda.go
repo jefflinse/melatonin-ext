@@ -3,6 +3,7 @@ package lambda
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -218,6 +219,10 @@ func (tc *TestCase) invoke() (*TestResult, error) {
 		result.Version = *resp.ExecutedVersion
 	}
 
+	if resp.LogResult != nil {
+		result.LogBase64 = *resp.LogResult
+	}
+
 	return result, nil
 }
 
@@ -284,6 +289,7 @@ type TestResult struct {
 	Payload         []byte
 	Status          int
 	Version         string
+	LogBase64       string
 
 	testCase *TestCase
 	errors   []error
@@ -291,6 +297,20 @@ type TestResult struct {
 
 func (r *TestResult) Errors() []error {
 	return r.errors
+}
+
+func (r *TestResult) Log() (string, error) {
+	if r.LogBase64 == "" {
+		return "", nil
+	}
+
+	var b []byte
+	_, err := base64.StdEncoding.Decode(b, []byte(r.LogBase64))
+	if err != nil {
+		return "", err
+	}
+
+	return string(b), nil
 }
 
 func (r *TestResult) TestCase() mt.TestCase {

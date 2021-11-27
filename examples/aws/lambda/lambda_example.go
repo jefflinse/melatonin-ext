@@ -15,7 +15,7 @@ func main() {
 	lda := lambda.NewTestContext(svc)
 
 	runner := mt.NewTestRunner().WithContinueOnFailure(true)
-	_, err := runner.RunTests([]mt.TestCase{
+	runner.RunTests([]mt.TestCase{
 		lambda.Handle(sampleHandler, "testing my handler").
 			WithPayload(json.Object{}).
 			ExpectStatus(200).
@@ -83,10 +83,6 @@ func main() {
 
 		lambda.Invoke("testFunction", "test a lambda using the default context"),
 	})
-
-	if err != nil {
-		panic(err)
-	}
 }
 
 func sampleHandler(ctx context.Context, event map[string]interface{}) (map[string]interface{}, error) {
