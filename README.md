@@ -19,7 +19,7 @@ package main
 
 import (
     "github.com/jefflinse/melatonin/mt"
-    "github.com/jefflinse/melatonin-ext/aws"
+    "github.com/jefflinse/melatonin-ext/aws/lambda"
 )
 
 func myHandler(ctx context.Context, event interface{}) (interface{}, error) {
@@ -31,16 +31,16 @@ func main() {
     mt.RunTests([]mt.TestCase{
 
         // Test a Go handler function directly
-        aws.Handle(myHandler).
+        lambda.Handle(myHandler).
             ExpectPayload("Hello, world!"),
 
         // Test a Lambda function by name...
-        aws.Invoke("my-lambda-function").
+        lambda.Invoke("my-lambda-function").
             ExpectStatus(200).
             ExpectPayload("Hello, world!"),
 
         // ...or by ARN
-        aws.Invoke("arn:aws:lambda:us-west-2:123456789012:function:my-lambda-function").
+        lambda.Invoke("arn:aws:lambda:us-west-2:123456789012:function:my-lambda-function").
             ExpectStatus(200).
             ExpectPayload("Hello, world!"),
     })
@@ -54,10 +54,10 @@ Define a custom context to customize the AWS Lambda service, including the AWS s
 ```go
 import (
     "github.com/aws/aws-sdk-go/aws/session"
-    "github.com/aws/aws-sdk-go/service/lambda"
+    lambdasvc "github.com/aws/aws-sdk-go/service/lambda"
 )
 
-lambdaService := lambda.New(aws.Must(aws.NewSession(
+lambdaService := lambdasvc.New(aws.Must(aws.NewSession(
     aws.WithRegion("us-west-2"),
 )))
 
