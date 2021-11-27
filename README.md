@@ -1,4 +1,4 @@
-# melatonin-ext - Extensions for the [melatonin](https://github.com/jefflinse/melatonin) test framework
+# melatonin-ext - Extensions for the [melatonin](https://github.com/jefflinse/melatonin#readme) test framework
 
 These packages extend melatonin to provide additional test contexts for testing various 3rd party services.
 
