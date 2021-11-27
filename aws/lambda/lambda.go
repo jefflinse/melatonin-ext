@@ -309,6 +309,8 @@ type TestResult struct {
 	errors   []error
 }
 
+var _ mt.TestResult = (*TestResult)(nil)
+
 func (r *TestResult) Errors() []error {
 	return r.errors
 }
